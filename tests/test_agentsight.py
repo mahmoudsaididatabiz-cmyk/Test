@@ -105,6 +105,63 @@ class TestSessionManagement:
         assert collector.is_running is False
         assert collector.last_load_status["injected"] is False
 
+    def test_start_calls_runtime_loader_and_uses_real_load_path(self, monkeypatch):
+        """start() should call the real runtime loader and not rely on the legacy preflight-only path."""
+        collector = BPFEventCollector()
+        calls = {"loader": 0}
+
+        def fake_runtime_load_and_attach():
+            calls["loader"] += 1
+            return {"injected": True, "reason": "runtime attach ok"}
+
+        def fail_if_called():
+            raise AssertionError("legacy _load_kernel_probe should not be used by start()")
+
+        monkeypatch.setattr(collector.loader, "load_and_attach", fake_runtime_load_and_attach)
+        monkeypatch.setattr(collector, "_load_kernel_probe", fail_if_called)
+
+        collector.start()
+
+        assert collector.is_running is True
+        assert collector.last_load_status["injected"] is True
+        assert calls["loader"] == 1
+
+    def test_real_exec_event_round_trip_and_ppid_session_resolution(self):
+        """A process exec event should be decoded correctly and correlated to its parent session by PPID."""
+        manager = SessionManager()
+        parent_event = ProcessExecutionEvent(
+            timestamp=datetime.now(timezone.utc),
+            pid=1000,
+            ppid=1,
+            uid=1000,
+            gid=1000,
+            comm="python",
+            executable="/usr/bin/python3",
+            argv=["python3", "agent.py"],
+            cwd="/tmp",
+        )
+
+        session = manager.create_session("ppid-session", "agent", parent_event)
+        collector = BPFEventCollector()
+
+        raw_event = {
+            "pid": 1001,
+            "ppid": 1000,
+            "uid": 1000,
+            "gid": 1000,
+            "comm": "echo",
+            "filename": "/bin/echo",
+            "sequence": 7,
+        }
+
+        processed = collector.process_raw_event(raw_event)
+        assert processed is not None
+        assert processed.pid == 1001
+        assert processed.ppid == 1000
+        assert processed.executable == "/bin/echo"
+        assert processed.comm == "echo"
+        assert manager.resolve_session_for_process(processed) == session
+
     def test_create_session(self):
         """Test creating a new session."""
         manager = SessionManager()

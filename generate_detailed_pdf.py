@@ -85,7 +85,7 @@ def add_test_coverage_chart(story, heading2_style):
 def create_detailed_pdf():
     """Generate comprehensive AgentSight documentation PDF"""
     
-    filename = "/workspaces/test/AgentSight_Detailed_Response.pdf"
+    filename = "/workspaces/Test/AgentSight_Detailed_Response.pdf"
     doc = SimpleDocTemplate(filename, pagesize=letter,
                           rightMargin=0.75*inch, leftMargin=0.75*inch,
                           topMargin=1*inch, bottomMargin=0.75*inch)

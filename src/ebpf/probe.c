@@ -13,8 +13,9 @@
  *
  * 2. Kernel-to-Userspace Communication: Ring Buffer
  *    - Alternative: Perf buffer (older), BPF_MAP_TYPE_PERF_BUFFER (deprecated)
- *    - Choice rationale: Ring buffer is more efficient (single ring vs per-CPU),
- *      no memory overhead, better for high-frequency events, modern standard
+ *    - Choice rationale: Ring buffer is a modern, efficient transport, but in practice
+ *      it is still a best-effort kernel->userspace channel that may drop events under
+ *      backpressure or when the consumer is not keeping up.
  *
  * 3. Event Structure: Contains minimum required fields:
  *    - Process identification: pid, ppid, uid, gid, comm
@@ -137,9 +138,9 @@ int handle_exec(struct trace_event_raw_sched_process_exec *ctx)
  *    - Example: only track PIDs with specific parent
  *
  * 5. Event Loss Observability:
- *    - Userspace must track last_sequence_seen
- *    - Gap in sequence = lost events
- *    - Can log to metrics/tracing system
+ *    - Userspace must track last_sequence_seen and detect gaps
+ *    - Gap in sequence = lost events under backpressure or consumer lag
+ *    - This is a diagnostic signal, not a guarantee that every event was captured
  */
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";

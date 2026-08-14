@@ -1,222 +1,70 @@
-# 📋 ANALYSE COMPLÈTE DU BESOIN - Technical Assessment AgentSight eBPF
+# Technical assessment: AgentSight eBPF prototype
 
-**Document**: Technical_Assessment_AgentSight_eBPF - 2026.pdf  
-**Date**: 2026-08-14  
-**Status**: ✅ PROTOTYPE TECHNIQUE VALIDÉ ET DOCUMENTÉ
+## Scope
 
----
+This document describes the current project status, not a claim of full production deployment. The repository implements a credible technical prototype for OS-level monitoring of AI agent activity, with validated code paths and tests, but without a confirmed live eBPF kernel injection in every runtime environment.
 
-## 🎯 CONTEXTE & OBJECTIF
+## What the project demonstrates
 
-### Problème à Résoudre
-Les **logs applicatifs seuls ne fournissent pas une vue indépendante** de ce qu'un agent IA exécute réellement au niveau du système d'exploitation.
+- Process execution event modeling
+- Session correlation using PID/PPID logic
+- Security detection rules for suspicious actions
+- FastAPI-based inspection API
+- Simulation of realistic malicious or risky workflows
+- Linux capability preflight checks for eBPF readiness
 
-### Solution Proposée
-**AgentSight**: Un système de surveillance de sécurité au niveau OS qui:
-- 📍 Capture les événements au niveau kernel (eBPF)
-- 🔄 Corrèle les prompts LLM avec les activités OS observées
-- 🚨 Détecte les actions suspectes/malveillantes
-- 📊 Fournit une API REST pour inspection et analyse
+## Current status
 
----
+The repository is a design prototype and validation artifact. It is not a guarantee of a fully running kernel monitor on arbitrary hosts. The honest and verified status is:
 
-## 🏗️ LES 6 PARTIES DU BESOIN (A-F)
+- architecture is implemented and testable
+- the codebase is structured and modular
+- security rules are implemented and exercised
+- eBPF runtime is represented via source and preflight checks
+- live kernel attachment remains a future deployment step
 
-### ✅ **PARTIE A: Architecture & Pipeline Design**
+## Key technical sections
 
-#### Besoin
-Analyser et concevoir un pipeline complet de capture d'événements OS du kernel vers userspace, en expliquant les choix de design et mécanismes de communication.
+### A. Architecture and pipeline
 
-#### Spécifications
-```
-PIPELINE REQUIS:
-┌─────────────────────────────────────────────────────┐
-│ Kernel (tracepoint: sched_process_exec)             │
-│ ↓ eBPF Probe captures process execution             │
-├─────────────────────────────────────────────────────┤
-│ Ring Buffer (kernel→userspace communication)        │
-│ • Lock-free circular buffer (Linux 5.8+)            │
-│ • Backpressure handling (silent drop)               │
-│ • Event loss detection via sequence numbers         │
-├─────────────────────────────────────────────────────┤
-│ Event Collector (Python userspace)                  │
-│ • Reads ring buffer                                 │
-│ • Deserializes into Pydantic models                 │
-├─────────────────────────────────────────────────────┤
-│ Session Manager                                      │
-│ • Associates events with agent sessions             │
-│ • Builds process trees via PPID                     │
-├─────────────────────────────────────────────────────┤
-│ Security Engine                                      │
-│ • Analyzes events for suspicious patterns           │
-│ • Generates security events                         │
-├─────────────────────────────────────────────────────┤
-│ REST API (FastAPI)                                  │
-│ • Exposes data for inspection                       │
-└─────────────────────────────────────────────────────┘
-```
+The project models a Linux event pipeline from kernel to user space, including session correlation and security analysis.
 
-#### Critères de Succès
-- ✅ Hook eBPF sélectionné et justifié
-- ✅ Choix entre ring buffer vs alternatives documenté
-- ✅ Mécanisme de détection de perte d'événements décrit
-- ✅ Passage des données kernel→userspace expliqué
+### B. eBPF source design
 
----
+The probe in [src/ebpf/probe.c](src/ebpf/probe.c) targets `sched_process_exec` and uses a ring-buffer concept for kernel-to-user-space data flow. The design is valid as a prototype and design artifact, but the runtime path is deliberately conservative.
 
-### ✅ **PARTIE B: eBPF Kernel Probe Implementation**
+### C. Session model
 
-#### Besoin
-Implémenter une sonde eBPF complète qui capture les événements d'exécution de processus avec tout le contexte nécessaire (arguments, environment, codes de sortie).
+The session layer in [src/models/session.py](src/models/session.py) tracks agent execution, process ancestry, file access, network events, and security findings.
 
-#### Spécifications Techniques
-```c
-struct process_event {
-    u64 timestamp_ns;       // Précision nanoseconde
-    u32 pid;                // Process ID
-    u32 ppid;               // Parent Process ID (CRUCIAL pour tree building)
-    u32 uid;                // User ID
-    u32 gid;                // Group ID
-    char comm[16];          // Process name (limite kernel)
-    char filename[256];     // Executable path
-    char argv[4096];        // Command-line arguments (COMPLET)
-    char environ[4096];     // Environment variables
-    u64 sequence;           // Pour détection de perte d'événements
-};
+### D. Security engine
 
-Hook: SEC("tracepoint/sched/sched_process_exec")
-// Fires AFTER successful execve() - captures complete context
+The engine in [src/collector/security.py](src/collector/security.py) analyzes suspicious commands and sensitive file access patterns.
+
+### E. Workflow simulation
+
+The demo in [src/main.py](src/main.py) simulates a realistic unsafe agent workflow and shows how the system would report threats.
+
+### F. REST API
+
+The API in [src/api/server.py](src/api/server.py) exposes sessions, timelines, process trees, and security events.
+
+## Verification in this workspace
+
+```bash
+cd /workspaces/Test
+python -m pytest -q
 ```
 
-#### Événements Capturés
-- **ProcessExecutionEvent**: pid, ppid, uid/gid, comm, executable, argv, environ, exit_code, duration
-- **Métadonnées complètes**: timestamps nanoseconde, working directory
-- **Perte d'événements**: détectable via sequence numbers
+Observed result:
 
-#### Critères de Succès
-- ✅ Code C eBPF fonctionnel
-- ✅ Tracepoint hook correctement implémenté
-- ✅ Ring buffer communication opérationnelle
-- ✅ Arguments complets capturés
-- ✅ Sequence numbers pour loss detection
-
----
-
-### ✅ **PARTIE C: Session Model & Process Tree (Algorithmic Focus)**
-
-#### Besoin
-Créer un modèle de session qui:
-1. Trace l'exécution des agents (qui a démarré, quand, pourquoi)
-2. Construit des arbres de processus via les relations PPID
-3. Permet la recherche O(1) des processus par PID
-
-#### Spécifications Architecturales
-```python
-class AgentSession:
-    session_id: str
-    agent_name: str
-    start_time: datetime
-    processes: Dict[int, ProcessNode]  # O(1) lookup par PID
-    events: List[BaseOSEvent]
-    llm_interactions: List[LLMInteractionEvent]
-    
-class ProcessNode:
-    pid: int
-    ppid: int
-    comm: str
-    executable: str
-    start_time: datetime
-    children_pids: Set[int]  # Edges vers enfants
-    
-class SessionTimeline:
-    # Chronologically-ordered events for LLM-OS correlation
-    events: List[BaseOSEvent]
-    ordered_by: timestamp
+```text
+141 passed in 26.92s
 ```
 
-#### Algorithme de Construction d'Arbre
-```
-Pour chaque ProcessExecutionEvent(pid=1001, ppid=1000):
-  1. Créer ProcessNode(pid=1001) [O(1)]
-  2. Stocker en processes[1001] [O(1) dict insert]
-  3. Chercher parent: processes.get(1000) [O(1) dict lookup]
-  4. Ajouter à parent.children_pids [O(1) set insert]
-  5. Complexité totale: O(1) par événement
-  
-Avantages vs. approches traditionnelles:
-  • Hash map: ~1μs par lookup
-  • Linear search: ~500μs par lookup
-  • Tree traversal: ~100-500μs par lookup
-  → 500x PLUS RAPIDE
-```
+## Conclusion
 
-#### Critères de Succès
-- ✅ Modèle session complet (session_id, agent_name, timestamps)
-- ✅ O(1) process lookup by PID
-- ✅ PPID-based tree construction
-- ✅ Support de multiples sessions concurrentes
-- ✅ Timeline chronologique des événements
-
----
-
-### ✅ **PARTIE D: Security Rules & Detection Engine (5 Règles)**
-
-#### Besoin
-Implémenter des règles de sécurité complètes détectant:
-- Commandes sensibles exécutées
-- Accès à fichiers sensibles
-- Patterns de réseau suspects
-- Modifications de fichiers système
-- Suppressions de fichiers
-
-#### Les 5 Règles Requises
-
-| # | Règle | Sévérité | Détection |
-|---|-------|----------|-----------|
-| **1** | SENSITIVE_COMMAND_EXECUTION | HIGH | curl, wget, ssh, scp, sftp, sudo, chmod, chown, rm, dd, nc, telnet, git, gpg, openssl |
-| **2** | SENSITIVE_FILE_ACCESS | HIGH | /etc/passwd, /etc/shadow, /etc/sudoers, /root/.ssh/*, ~/.ssh/*, ~/.env, ~/.bash_history, /proc/sched_debug, /var/log/auth.log |
-| **3** | SENSITIVE_FILE_WRITE | CRITICAL | ANY write to: /etc/sudoers, /etc/shadow, /.ssh/*, ~/.ssh/* (NO EXCEPTIONS) |
-| **4** | FILE_DELETION | HIGH | Suppression de: /var/log/*, ~/.bash_history, sensitive files |
-| **5** | EXTERNAL_NETWORK_CONNECTION | MEDIUM | Connexions vers IPs non-privées (NOT: 127.*, 10.*, 192.168.*, 172.16.*) |
-
-#### Algorithme de Détection
-```python
-# Chaque règle = O(1) pattern matching
-for event in session.events:
-    # Rule 1: Sensitive Command
-    if event.comm in {curl, wget, ssh, ...}:
-        if not is_trusted_context(event):
-            emit_alert(SENSITIVE_COMMAND_EXECUTION, HIGH)
-    
-    # Rule 2: Sensitive File Access
-    if path in {/etc/passwd, ~/.ssh/*, ...}:
-        if not is_root_process(event.uid):
-            emit_alert(SENSITIVE_FILE_ACCESS, HIGH)
-    
-    # Rule 3: Sensitive File Write (CRITICAL - No exceptions)
-    if path in {/etc/sudoers, /etc/shadow, ...}:
-        emit_alert(SENSITIVE_FILE_WRITE, CRITICAL)  # Always!
-    
-    # Rule 4: File Deletion
-    if path in LOG_PATHS or is_sensitive_file(path):
-        if not in_admin_context(event):
-            emit_alert(SUSPICIOUS_FILE_DELETION, HIGH)
-    
-    # Rule 5: External Network
-    if not is_private_ip(event.remote_addr):
-        emit_alert(EXTERNAL_NETWORK_CONNECTION, MEDIUM)
-```
-
-#### Critères de Succès
-- ✅ 5 règles implémentées
-- ✅ Context-aware detection (root vs. user)
-- ✅ Pas de faux négatifs sur règles critiques
-- ✅ Architecture extensible (easy to add rules)
-- ✅ Callback-based rule system
-
----
-
-### ✅ **PARTIE E: LLM-OS Correlation & Timeline Analysis**
+This is a credible technical prototype and a valid assessment package. It is suitable for design review, architecture discussion, and validation of logic, but it should not be described as a confirmed live eBPF deployment without a privileged Linux host and explicit runtime validation.
 
 #### Besoin
 Corréler les prompts/réponses LLM avec les activités OS observées, permettant:

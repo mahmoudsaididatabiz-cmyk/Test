@@ -300,9 +300,9 @@ class BPFEventCollector:
         return self.check_kernel_injection_capabilities()
 
     def start(self) -> None:
-        """Compile/load/attach the eBPF probe when the host is capable, otherwise fail safely."""
+        """Start the collector using the real Linux eBPF runtime path when available."""
         logger.info("Starting BPF event collector")
-        status = self._load_kernel_probe()
+        status = self.loader.load_and_attach()
         self.last_load_status = status
 
         if not status.get("injected", False):

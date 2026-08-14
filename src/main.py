@@ -70,11 +70,12 @@ class AgentSightSystem:
                 initial_event=event,
             )
         
-        # Find session for this event
-        session = self.session_manager.get_session_for_pid(event.pid)
+        # Resolve the owning session using PID and PPID correlation so child agents
+        # remain attached to the same execution tree and alerting session.
+        session = self.session_manager.resolve_session_for_process(event)
         if session:
             self.session_manager.add_event_to_session(session.session_id, event)
-            
+
             # Check security rules
             sec_event = self.security_engine.analyze_event(event, session.session_id)
             if sec_event:

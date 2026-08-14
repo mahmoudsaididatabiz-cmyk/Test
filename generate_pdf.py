@@ -52,7 +52,7 @@ def generate_pdf():
     """Generate comprehensive PDF documentation"""
     
     # Setup
-    pdf_filename = "/workspaces/preemptics-test/AgentSight_Documentation.pdf"
+    pdf_filename = "/workspaces/Test/AgentSight_Documentation.pdf"
     doc = SimpleDocTemplate(
         pdf_filename,
         pagesize=letter,
