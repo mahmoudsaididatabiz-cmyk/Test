@@ -21,7 +21,7 @@ from src.models import (
     AgentSession,
     ProcessNode,
 )
-from src.collector.collector import SessionManager
+from src.collector.collector import BPFEventCollector, SessionManager
 from src.collector.security import SecurityEngine
 
 
@@ -75,7 +75,34 @@ class TestEventModels:
 
 class TestSessionManagement:
     """Test agent session creation and management."""
-    
+
+    def test_ebpf_probe_preflight_reports_kernel_status(self):
+        """Kernel injection checks should report a clear eBPF readiness status."""
+        collector = BPFEventCollector()
+
+        status = collector.check_kernel_injection_capabilities()
+
+        assert isinstance(status, dict)
+        assert "platform" in status
+        assert "kernel_version" in status
+        assert "bpf_supported" in status
+        assert "injected" in status
+        assert "reason" in status
+
+    def test_start_refuses_when_kernel_injection_is_unavailable(self, monkeypatch):
+        """start() should not mark the collector as running if eBPF injection fails."""
+        collector = BPFEventCollector()
+        monkeypatch.setattr(
+            collector,
+            "_load_kernel_probe",
+            lambda: {"injected": False, "reason": "requires CAP_BPF"},
+        )
+
+        collector.start()
+
+        assert collector.is_running is False
+        assert collector.last_load_status["injected"] is False
+
     def test_create_session(self):
         """Test creating a new session."""
         manager = SessionManager()
