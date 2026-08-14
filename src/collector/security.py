@@ -29,6 +29,13 @@ from src.models import (
     BaseOSEvent,
 )
 
+SEVERITY_RANK = {
+    EventSeverity.LOW: 1,
+    EventSeverity.MEDIUM: 2,
+    EventSeverity.HIGH: 3,
+    EventSeverity.CRITICAL: 4,
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,9 +83,18 @@ class SecurityEngine:
         "/etc/shadow",
         "/etc/sudoers",
         "/root/.ssh",
+        "/root/.ssh/id_rsa",
+        "/root/.ssh/id_ed25519",
+        "/root/.netrc",
         "/home/*/.ssh",
+        "/home/*/.aws",
+        "/home/*/.kube",
+        "/home/*/.netrc",
         "~/.ssh",
         "~/.env",
+        "~/.aws",
+        "~/.kube",
+        "~/.netrc",
         "~/.bash_history",
         "/proc/sched_debug",
         "/proc/keys",
@@ -150,40 +166,37 @@ class SecurityEngine:
     ) -> Optional[SecurityEvent]:
         """
         Analyze an event against security rules.
-        
-        Args:
-            event: OS-level event to analyze
-            session_id: ID of the session this event belongs to
-        
-        Returns:
-            SecurityEvent if violation detected, None otherwise
+
+        Prioritize the most severe match to avoid generic alerts hiding critical finds.
         """
         event_type_name = event.event_type.value
-        
-        # Find applicable rules for this event type
         applicable_rules = [r for r in self.rules if r.event_type == event_type_name]
-        
+        triggered = []
+
         for rule in applicable_rules:
             if rule.check_fn(event):
-                # Rule violated - create security event
-                return SecurityEvent(
-                    timestamp=datetime.now(timezone.utc),
-                    severity=rule.severity,
-                    session_id=session_id,
-                    pid=event.pid,
-                    ppid=event.ppid,
-                    action=event_type_name,
-                    target=self._get_event_target(event),
-                    rule_name=rule.name,
-                    rule_description=rule.description,
-                    raw_events=[event.model_dump()],
-                    metadata={
-                        "comm": event.comm,
-                        "executable": event.executable,
-                    }
-                )
-        
-        return None
+                triggered.append(rule)
+
+        if not triggered:
+            return None
+
+        best_rule = max(triggered, key=lambda r: SEVERITY_RANK.get(r.severity, 0))
+        return SecurityEvent(
+            timestamp=datetime.now(timezone.utc),
+            severity=best_rule.severity,
+            session_id=session_id,
+            pid=event.pid,
+            ppid=event.ppid,
+            action=event_type_name,
+            target=self._get_event_target(event),
+            rule_name=best_rule.name,
+            rule_description=best_rule.description,
+            raw_events=[event.model_dump(mode="json")],
+            metadata={
+                "comm": event.comm,
+                "executable": event.executable,
+            }
+        )
     
     # =========================================================================
     # Rule Check Functions
@@ -253,33 +266,37 @@ class SecurityEngine:
     
     def _is_sensitive_path(self, path: str) -> bool:
         """Check if path matches sensitive path patterns."""
+        if not path:
+            return False
+
         path_lower = path.lower()
-        
         for pattern in self.SENSITIVE_PATHS:
-            if pattern.endswith("*"):
-                # Wildcard pattern
-                prefix = pattern[:-1]
+            pattern_lower = pattern.lower()
+            if pattern_lower.endswith("*"):
+                prefix = pattern_lower[:-1]
                 if path_lower.startswith(prefix):
                     return True
-            elif pattern.startswith("~"):
-                # Home directory pattern: ~/ -> /home/*/ or /root/
-                home_pattern = pattern[1:]  # Remove ~
-                # Check if path ends with the pattern (e.g., /.ssh/id_rsa)
+            elif pattern_lower.startswith("~"):
+                home_pattern = pattern_lower[1:]
                 if path_lower.endswith(home_pattern):
                     return True
-                # Also check with absolute paths
-                # e.g., /home/user/.ssh matches ~/.ssh
-                if "/.ssh" in pattern or "/.env" in pattern or "/.bash" in pattern:
-                    if pattern.replace("~", "").replace("/", "") in path_lower:
-                        # More specific: check if .ssh or .env is in the path
-                        pattern_part = pattern.replace("~/", "").replace("~", "")
-                        if pattern_part in path_lower:
-                            return True
-            elif path_lower == pattern:
-                # Exact match
+                if "/.ssh" in home_pattern or "/.env" in home_pattern or "/.bash" in home_pattern or "/.aws" in home_pattern or "/.kube" in home_pattern or "/.netrc" in home_pattern:
+                    if home_pattern.replace("/", "") in path_lower.replace("/", ""):
+                        return True
+            elif path_lower == pattern_lower or path_lower.endswith(pattern_lower):
                 return True
-        
-        return False
+
+        credential_indicators = (
+            "/.ssh/",
+            "/.aws/",
+            "/.kube/",
+            "/.netrc",
+            "/.env",
+            "/etc/shadow",
+            "/etc/passwd",
+            "/etc/sudoers",
+        )
+        return any(indicator in path_lower for indicator in credential_indicators)
     
     def _get_event_target(self, event: BaseOSEvent) -> str:
         """Extract the target of an event (what was acted upon)."""

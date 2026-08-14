@@ -21,8 +21,10 @@ from src.models import (
     AgentSession,
     ProcessNode,
 )
+from src.api.server import create_api
 from src.collector.collector import BPFEventCollector, SessionManager
 from src.collector.security import SecurityEngine
+from fastapi.testclient import TestClient
 
 
 # =============================================================================

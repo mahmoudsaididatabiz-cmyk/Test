@@ -304,7 +304,9 @@ def test_complete_workflow():
     print("✅ TEST COMPLETE - ALL SYSTEMS OPERATIONAL")
     print("="*90 + "\n")
     
-    return 0
+    assert summary.total_security_events >= 1
+    assert session is not None
+    assert len(session.llm_interactions) >= 1
 
 if __name__ == "__main__":
     sys.exit(test_complete_workflow())

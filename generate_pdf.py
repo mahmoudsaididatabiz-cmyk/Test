@@ -168,11 +168,11 @@ def generate_pdf():
     
     # Document info
     doc_info_data = [
-        ['Document', 'AgentSight Complete Implementation & Testing'],
+        ['Document', 'AgentSight Technical Assessment Prototype & Validation'],
         ['Generated', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
-        ['Technology Stack', 'Python 3.12, Pydantic, FastAPI, eBPF'],
-        ['Architecture', 'Kernel-Userspace Pipeline with Ring Buffer'],
-        ['Status', '✅ COMPLETE - All 6 Parts Implemented & Tested']
+        ['Technology Stack', 'Python 3.12, Pydantic, FastAPI, eBPF design artifacts'],
+        ['Architecture', 'Kernel-Userspace Pipeline with eBPF preflight validation'],
+        ['Status', '⚠️ REPRESENTATIVE TECHNICAL PROTOTYPE - Validated logic, not confirmed live injection']
     ]
     
     doc_info_table = Table(doc_info_data, colWidths=[1.8*inch, 4.2*inch])
@@ -219,24 +219,25 @@ def generate_pdf():
     content.append(Spacer(1, 0.15*inch))
     
     exec_summary = """
-    <b>AgentSight</b> is a comprehensive OS-level security monitoring system designed specifically 
-    for AI agents operating in constrained environments. The system leverages extended Berkeley 
-    Packet Filters (eBPF) for efficient kernel-space event capture, combined with sophisticated 
-    userspace analysis and LLM-OS correlation to detect and prevent malicious or unintended agent behavior.
+    <b>AgentSight</b> is a technical assessment prototype for OS-level security monitoring of AI agents. 
+    The implementation demonstrates the intended architecture and workflow for kernel event capture, 
+    session correlation, security detection, and API exposure, while remaining honest about the current 
+    runtime boundary: the project validates Linux/eBPF capability preflight rather than confirming a live 
+    kernel attachment in every environment.
     <br/><br/>
     <b>Key Achievements:</b>
     <br/>
-    • <b>Complete Implementation:</b> All 6 architectural components fully implemented and tested
+    • <b>Validated architecture:</b> All 6 design components are represented in code and workflows
     <br/>
-    • <b>Real-World Testing:</b> Comprehensive end-to-end test demonstrating detection of 4 security violations
+    • <b>Representative testing:</b> End-to-end simulations demonstrate detection logic for suspicious OS behavior
     <br/>
-    • <b>Enterprise-Grade Design:</b> Modular, extensible architecture with clean separation of concerns
+    • <b>Modular design:</b> Clear separation between event models, session logic, security rules, and API
     <br/>
-    • <b>High-Performance Event Capture:</b> Ring buffer-based collection with automatic loss detection
+    • <b>eBPF readiness checks:</b> Linux capability preflight verifies whether injection is feasible on the host
     <br/>
-    • <b>Smart Correlation Engine:</b> Matches LLM prompts to OS activities via session timeline
+    • <b>LLM-OS correlation:</b> Session timeline and process tree logic link prompts to observed system events
     <br/>
-    • <b>Production-Ready API:</b> RESTful interface for querying and analyzing agent behavior
+    • <b>API surface:</b> REST endpoints provide event, session, and statistics access for analysis workflows
     """
     
     content.append(Paragraph(exec_summary, body_style))
@@ -951,45 +952,39 @@ def generate_pdf():
     content.append(Spacer(1, 0.15*inch))
     
     conclusions = """
-    <b>Project Completion Status: ✅ 100% COMPLETE</b>
+    <b>Project Status: ⚠️ TECHNICAL ASSESSMENT PROTOTYPE</b>
     <br/><br/>
-    
-    All six architectural components have been successfully implemented, tested, and documented:
+
+    The repository successfully implements a strong architectural and validation prototype for OS-level AI-agent monitoring:
     <br/><br/>
-    
-    ✅ <b>Part A:</b> System architecture designed for reliability and efficiency<br/>
-    ✅ <b>Part B:</b> eBPF kernel probe implementing ring buffer event capture<br/>
+
+    ✅ <b>Part A:</b> System architecture designed for kernel-to-userspace monitoring<br/>
+    ✅ <b>Part B:</b> eBPF C source and Linux capability preflight for intended kernel instrumentation<br/>
     ✅ <b>Part C:</b> Session model with process tree tracking and correlation<br/>
-    ✅ <b>Part D:</b> Security rules engine detecting 5 threat categories<br/>
-    ✅ <b>Part E:</b> LLM-OS correlation via session timeline<br/>
-    ✅ <b>Part F:</b> REST API with 9 endpoints for monitoring and analysis<br/>
+    ✅ <b>Part D:</b> Security rules engine detecting suspicious activity patterns<br/>
+    ✅ <b>Part E:</b> LLM-OS correlation via session timeline and security context<br/>
+    ✅ <b>Part F:</b> REST API exposing session, event, and statistics data<br/>
     <br/>
-    
-    <b>Real-World Validation:</b><br/>
-    • Comprehensive end-to-end test simulating realistic malicious agent behavior<br/>
-    • 4 distinct security violations successfully detected<br/>
-    • Process tree correctly reconstructed from PPID relationships<br/>
-    • LLM prompts correlated to OS events in chronological order<br/>
-    • Risk assessment correctly identified CRITICAL threat level<br/>
+
+    <b>Verified Reality:</b><br/>
+    • The system demonstrates realistic threat-detection logic and session modeling<br/>
+    • The tests validate architecture, API behavior, and rule logic in the current environment<br/>
+    • The eBPF path remains a capability-checked design target rather than a confirmed live kernel attachment<br/>
+    • Future work is required for production deployment and validated real kernel injection<br/>
     <br/>
-    
+
     <b>Key Achievements:</b><br/>
-    • Production-quality code with proper error handling<br/>
-    • Modular architecture enabling easy extension<br/>
-    • Comprehensive documentation (README, API examples, design docs)<br/>
-    • No external dependencies beyond Python standard library + FastAPI<br/>
-    • Clean, readable code avoiding "looks AI-generated" patterns<br/>
+    • Honest, checkable implementation boundary between design and runtime reality<br/>
+    • Modular architecture enabling extension to real kernel collection when the environment supports it<br/>
+    • Comprehensive documentation and representative validation artifacts<br/>
+    • Clear separation of simulation, analysis, and future runtime integration steps<br/>
     <br/>
-    
-    <b>Future Enhancements:</b><br/>
-    • Real eBPF loading with libbpf Python bindings<br/>
-    • PostgreSQL backend for persistent session storage<br/>
-    • Distributed architecture for multi-host deployments<br/>
-    • Machine learning-based anomaly detection<br/>
-    • Grafana dashboards for visualization<br/>
-    • Prometheus metrics export for monitoring<br/>
-    • Multi-tenant support with RBAC<br/>
-    • Web UI for interactive session analysis<br/>
+
+    <b>Next Engineering Steps:</b><br/>
+    • Validate real eBPF load and attachment on a privileged Linux host<br/>
+    • Add persistent storage, rate limiting, and operational telemetry<br/>
+    • Harden deployment for multi-host collection and production monitoring<br/>
+    • Extend the correlation layer with richer context from agent prompts and execution history<br/>
     """
     content.append(Paragraph(conclusions, body_style))
     
@@ -997,8 +992,8 @@ def generate_pdf():
     
     # Final box
     final_box_text = """
-    <b>AgentSight successfully demonstrates the feasibility and effectiveness of eBPF-based 
-    security monitoring for AI agents, with production-ready architecture and proven threat detection capabilities.</b>
+    <b>AgentSight demonstrates a credible architecture and validated prototype for OS-level AI-agent monitoring,
+    while remaining honest that live eBPF kernel injection is a future runtime milestone rather than a confirmed deployment in this repo.</b>
     """
     
     final_para = Paragraph(final_box_text, 

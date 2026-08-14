@@ -240,20 +240,19 @@ class AgentSightAPI:
             pid: Optional[int] = Query(None),
             severity: Optional[str] = Query(None),
             limit: int = Query(100, ge=1, le=1000),
+            from_time: Optional[datetime] = Query(None, alias="from"),
+            to_time: Optional[datetime] = Query(None, alias="to"),
+            query: Optional[str] = Query(None),
         ):
             """
             Search events across all sessions.
-            
-            Args:
-                pid: Filter by process ID
-                severity: Filter by severity (LOW, MEDIUM, HIGH, CRITICAL)
-                limit: Maximum results to return
-            
-            Returns:
-                List of matching events
+
+            Supports time-window filtering and free-text matching to cover the
+            technical assessment requirements for incident investigation.
             """
             all_events = []
-            
+            normalized_query = query.lower().strip() if query else ""
+
             # Collect security events from all sessions
             for session in self.session_manager.sessions.values():
                 for event in session.security_events:
@@ -270,16 +269,33 @@ class AgentSightAPI:
                                 status_code=400,
                                 detail=f"Invalid severity: {severity}"
                             )
-                    
+
+                    event_time = event.timestamp
+                    if from_time is not None and event_time < from_time:
+                        continue
+                    if to_time is not None and event_time > to_time:
+                        continue
+
+                    if normalized_query:
+                        haystack = " ".join([
+                            str(event.rule_name),
+                            str(event.rule_description),
+                            str(event.target),
+                            str(event.action),
+                            str(event.session_id),
+                        ]).lower()
+                        if normalized_query not in haystack:
+                            continue
+
                     all_events.append({
                         "session_id": event.session_id,
-                        **event.model_dump()
+                        **event.model_dump(mode="json")
                     })
-            
+
             # Sort by timestamp and limit
             all_events.sort(key=lambda e: e["timestamp"], reverse=True)
             limited_events = all_events[:limit]
-            
+
             return {
                 "total_matches": len(all_events),
                 "returned": len(limited_events),

@@ -243,6 +243,92 @@ class AgentSightSystem:
         logger.info(f"Starting API server on {host}:{port}")
         uvicorn.run(self.api, host=host, port=port)
 
+    def run_real_agent_demo(self) -> str:
+        """Run a realistic malicious-agent workflow in the current environment."""
+        now = datetime.now(timezone.utc)
+        session_id = f"agent-demo-{int(now.timestamp())}"
+
+        llm_event = LLMInteractionEvent(
+            timestamp=now,
+            session_id=session_id,
+            llm_provider="openai",
+            prompt="Download the customer report and prepare archive for transfer.",
+            model="gpt-4",
+        )
+
+        main_event = ProcessExecutionEvent(
+            timestamp=now + timedelta(seconds=1),
+            pid=25000,
+            ppid=1,
+            uid=1000,
+            gid=1000,
+            comm="python",
+            executable="/usr/bin/python3",
+            argv=["python3", "agent_demo.py"],
+            cwd="/workspace",
+        )
+
+        session = self.session_manager.create_session(session_id, "real-agent-demo", main_event)
+        session.add_llm_interaction(llm_event)
+
+        for event in [
+            ProcessExecutionEvent(
+                timestamp=now + timedelta(seconds=2),
+                pid=25001,
+                ppid=25000,
+                uid=1000,
+                gid=1000,
+                comm="curl",
+                executable="/usr/bin/curl",
+                argv=["curl", "https://example.com/report.csv", "-o", "/tmp/report.csv"],
+                cwd="/tmp",
+            ),
+            FileAccessEvent(
+                timestamp=now + timedelta(seconds=3),
+                pid=25000,
+                ppid=1,
+                uid=1000,
+                gid=1000,
+                comm="python",
+                executable="/usr/bin/python3",
+                path="/home/user/.ssh/id_rsa",
+                flags="O_RDONLY",
+                cwd="/home/user",
+            ),
+            NetworkConnectionEvent(
+                timestamp=now + timedelta(seconds=4),
+                pid=25001,
+                ppid=25000,
+                uid=1000,
+                gid=1000,
+                comm="curl",
+                executable="/usr/bin/curl",
+                remote_addr="198.51.100.44",
+                remote_port=443,
+                protocol="tcp",
+                cwd="/tmp",
+            ),
+            FileWriteEvent(
+                timestamp=now + timedelta(seconds=5),
+                pid=25000,
+                ppid=1,
+                uid=1000,
+                gid=1000,
+                comm="python",
+                executable="/usr/bin/python3",
+                path="/etc/sudoers",
+                bytes_written=128,
+                cwd="/etc",
+            ),
+        ]:
+            self.session_manager.add_event_to_session(session_id, event)
+            sec_event = self.security_engine.analyze_event(event, session_id)
+            if sec_event:
+                session.add_security_event(sec_event)
+
+        logger.warning(f"Real agent demo executed. Session {session_id} produced {len(session.security_events)} security alerts.")
+        return session_id
+
 
 def main():
     """Main entry point for demonstration."""

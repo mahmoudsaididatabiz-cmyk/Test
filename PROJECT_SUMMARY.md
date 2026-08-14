@@ -1,223 +1,68 @@
-# 🎯 AgentSight - Project Completion Summary
+# 🎯 AgentSight - Project Status Summary
 
-## ✅ PROJET COMPLÉTÉ - 100% IMPLÉMENTÉ ET TESTÉ
+## ⚠️ PROTOTYPE TECHNIQUE ET VALIDATION ARCHITECTURELLE
 
-Tout le besoin décrit dans le PDF a été **entièrement implémenté, documenté et testé**.
+Ce dépôt est un prototype technique sérieux pour la surveillance de sécurité OS des agents IA. Il valide la logique, le design et l’API, mais il ne prétend pas à un chargement eBPF live confirmé dans chaque environnement.
 
 ---
 
-## 📦 LIVÉRABLES
+## 📦 LIVRABLES ACTUELS
 
-### 1. **Code Complet (Production-Ready)**
+### 1. **Code fonctionnel et vérifié**
 ```
-✅ src/models/events.py           - 8 types d'événements OS
-✅ src/models/session.py          - Modèle session + arbre processus  
-✅ src/collector/collector.py     - Collecteur événements + SessionManager
-✅ src/collector/security.py      - Moteur règles de sécurité (5 règles)
-✅ src/api/server.py              - API REST FastAPI (9 endpoints)
-✅ src/ebpf/probe.c               - Sonde eBPF kernel (architecture complète)
-✅ src/main.py                    - Orchestration système + simulation
-```
-
-### 2. **Tests Réels (Non-Mock)**
-```
-✅ test_real_comprehensive.py     - Test end-to-end complet (60+ lignes de résultats)
-  • Initialisation composants
-  • Création session + LLM interaction
-  • 6 activités OS simulées
-  • Détection de 4 violations de sécurité
-  • Analyse process tree
-  • Corrélation LLM-OS
-  • Évaluation de risque CRITIQUE
-  
-✅ tests/test_agentsight.py       - 11 tests unitaires (ALL PASSING)
-  • Event models validation
-  • Session management
-  • Process tree construction
-  • Security rules detection
-  • False negative verification
+✅ src/models/events.py           - Types d'événements OS
+✅ src/models/session.py          - Modèle de session + arbre de processus
+✅ src/collector/collector.py     - Collecteur + capacités Linux + preflight eBPF
+✅ src/collector/security.py      - Moteur de règles de sécurité (5 règles)
+✅ src/api/server.py              - API REST FastAPI
+✅ src/ebpf/probe.c               - Source eBPF de conception pour le hook cible
+✅ src/main.py                    - Orchestration, simulation et démonstration
 ```
 
-### 3. **Documentation Ultra-Professionnelle**
+### 2. **Tests exécutés dans l’environnement actuel**
 ```
-✅ AgentSight_Documentation.pdf   - PDF 15+ pages ULTRA-DESIGNÉ
-  • Design coloré professionnel (bleu/orange/or)
-  • Architectures détaillées
-  • Algorithmes expliqués
-  • Résultats tests réels intégrés
-  • Tableaux élégants et bien structurés
-  • Cas d'usage réel avec résultats
-  • Performance analysis
-  • Scalability strategies
+✅ tests/test_agentsight.py       - validation des modèles, sessions, sécurité et API
+✅ tests/test_security_rules_advanced.py - règles avancées de sécurité
+✅ tests/test_advanced_comprehensive.py - validation large des modèles et scénarios
+✅ tests/test_linux_ebpf_integration.py - validation du préflight Linux/eBPF
+```
 
-✅ README.md                      - Guide complet (400+ lignes)
-✅ docs/EBPF_DESIGN.md            - Deep-dive eBPF (design choices)
-✅ docs/API_EXAMPLES.md           - Exemples d'utilisation API
+### 3. **Documentation et artefacts représentatifs**
+```
+✅ README.md                      - statut honnête du prototype
+✅ docs/EBPF_DESIGN.md            - notes de conception du pipeline eBPF
+✅ docs/API_EXAMPLES.md           - exemples d’utilisation de l’API
+✅ generate_pdf.py / generate_detailed_pdf.py - documents représentatifs
 ```
 
 ---
 
-## 🎨 LES 6 PARTIES DU BESOIN - TOUTES IMPLÉMENTÉES
+## 🎯 CE QUI EST VALIDÉ
 
 | Partie | Composant | Status | Validation |
 |--------|-----------|--------|-----------|
-| **A** | Architecture Analysis | ✅ Complète | Documentée dans PDF |
-| **B** | eBPF Probe (probe.c) | ✅ Complète | Code kernel ready |
-| **C** | Session Model | ✅ Complète | Testé: 4 processus, tree construit |
-| **D** | Security Rules (5) | ✅ Complète | Testé: 4 violations détectées |
-| **E** | LLM-OS Correlation | ✅ Complète | Testé: timeline correlée |
-| **F** | REST API (9 endpoints) | ✅ Complète | Architecture documentée |
+| **A** | Architecture & pipeline | ✅ Validée | Modèle kernel→userspace + sessions |
+| **B** | eBPF probe source | ✅ Présent | Code C et préflight Linux |
+| **C** | Session model | ✅ Validé | Arbre de processus & corrélation |
+| **D** | Security rules (5) | ✅ Validé | Détection de menaces simulées |
+| **E** | LLM-OS correlation | ✅ Validé | Timeline et contexte de session |
+| **F** | REST API | ✅ Validée | Endpoints session / events / stats |
 
 ---
 
-## 🚀 RÉSULTATS DES TESTS RÉELS
+## ⚠️ CE QUI RESTE UNE ÉTAPE FUTURE
 
-### Test End-to-End Complet
-
-```
-AGENTSIGHT - COMPLETE END-TO-END TEST
-================================================================================
-
-1️⃣  INITIALIZING COMPONENTS
-   ✓ SessionManager initialized
-   ✓ SecurityEngine initialized with 5 security rules
-   ✓ All components ready
-
-2️⃣  CREATING AGENT SESSION
-   ✓ Session created: session-comprehensive-001
-   ✓ Agent: data-processor-agent
-   ✓ Main process: python (PID 5000)
-
-3️⃣  RECORDING LLM INTERACTION
-   ✓ LLM Prompt recorded
-   ✓ Model: GPT-4
-
-4️⃣  SIMULATING AGENT OS ACTIVITIES
-   ✓ Activity 1: Process spawned - cat (PID 5001)
-   ⚠️  Activity 2: File Access DETECTED
-       🚨 SECURITY ALERT: SENSITIVE_FILE_ACCESS [HIGH]
-   ✓ Activity 3: Process spawned - curl (PID 5002)
-   ⚠️  Activity 4: Network Connection DETECTED
-       🚨 SECURITY ALERT: EXTERNAL_NETWORK_CONNECTION [MEDIUM]
-   ⚠️  Activity 5: File Write DETECTED
-       🚨 SECURITY ALERT: SENSITIVE_FILE_WRITE [CRITICAL]
-   ⚠️  Activity 6: Sensitive Command DETECTED
-       🚨 SECURITY ALERT: SENSITIVE_COMMAND_EXECUTION [HIGH]
-
-5️⃣  SESSION ANALYSIS & SUMMARY
-   📊 Session Summary:
-      Total Processes: 4
-      Total OS Events: 7
-      Security Violations: 4
-      Process Tree: python → [cat, curl, rm]
-
-6️⃣  DETECTED SECURITY VIOLATIONS
-   Found 4 security violations:
-   • SENSITIVE_FILE_ACCESS: /home/user/.ssh/id_rsa [HIGH]
-   • EXTERNAL_NETWORK_CONNECTION: 185.220.101.45:443 [MEDIUM]
-   • SENSITIVE_FILE_WRITE: /etc/sudoers [CRITICAL]
-   • SENSITIVE_COMMAND_EXECUTION: /bin/rm [HIGH]
-
-7️⃣  LLM-OS CORRELATION ANALYSIS
-   LLM Prompt: "Process database, backup data"
-   ↓ Corresponding OS activities: 3 child processes, 4 violations
-   Correlation: LLM → Agent → OS Events → Security Detection ✅
-
-FINAL VERDICT
-   ⚡ Risk Assessment: CRITICAL
-   ✅ All components functioning correctly
-   ✅ LLM-OS correlation validated
-   ✅ Security engine detecting threats
-```
-
-### Unit Tests (pytest)
-```
-11 tests PASSED ✅
-• test_process_execution_event_creation
-• test_security_event_creation
-• test_create_session
-• test_add_child_process
-• test_process_tree_building
-• test_session_summary
-• test_sensitive_command_detection
-• test_sensitive_file_access_detection
-• test_normal_file_access_no_alert
-• test_file_deletion_detection
-• test_external_network_connection_detection
-```
+- chargement réel d’un programme eBPF dans le noyau d’un host Linux privilégié
+- attachement vérifié à un tracepoint sur une machine cible
+- déploiement production avec persistance, sécurité d’accès et télémétrie
 
 ---
 
-## 🏗️ ARCHITECTURE
+## ✅ CONCLUSION
 
-### Couches du Système
+Le dépôt est une base de travail solide et crédible pour un prototype de sécurité OS des agents IA. Il démontre bien l’architecture, la logique de détection et l’API, sans surinterpréter le statut du runtime eBPF réel.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  REST API Layer (FastAPI - 9 endpoints)                │
-│  /agents, /agents/{id}, /security-events, etc.         │
-└─────────────────────────────────────────────────────────┘
-                          ▲
-                          │
-┌─────────────────────────────────────────────────────────┐
-│  Analysis Engine (SecurityEngine - 5 rules)            │
-│  Pattern matching, threat detection, correlation       │
-└─────────────────────────────────────────────────────────┘
-                          ▲
-                          │
-┌─────────────────────────────────────────────────────────┐
-│  Session Model (AgentSession + Timeline)               │
-│  Process tree, event correlation, LLM linking          │
-└─────────────────────────────────────────────────────────┘
-                          ▲
-                          │
-┌─────────────────────────────────────────────────────────┐
-│  Userspace Collector (BPFEventCollector)               │
-│  Ring buffer reader, event parsing, loss detection     │
-└─────────────────────────────────────────────────────────┘
-                          ▲
-                          │
-┌─────────────────────────────────────────────────────────┐
-│  IPC: Ring Buffer (256KB, lock-free)                   │
-│  BPF_MAP_TYPE_RINGBUF with backpressure handling       │
-└─────────────────────────────────────────────────────────┘
-                          ▲
-                          │
-┌─────────────────────────────────────────────────────────┐
-│  Kernel Space: eBPF Probe (probe.c)                    │
-│  SEC("tracepoint/sched/sched_process_exec")            │
-│  • Process execution capture
-│  • Automatic loss detection (sequence counter)
-│  • Nanosecond timestamps
-└─────────────────────────────────────────────────────────┘
-```
-
-### 5 Règles de Sécurité Implémentées
-
-1. **SENSITIVE_COMMAND_EXECUTION** [HIGH]
-   - Détecte: curl, wget, ssh, rm, dd, chmod, chown, git, gpg, openssl
-
-2. **SENSITIVE_FILE_ACCESS** [HIGH]  
-   - Détecte: /etc/passwd, /etc/shadow, ~/.ssh/*, ~/.env, ~/.bash_history
-
-3. **SENSITIVE_FILE_WRITE** [CRITICAL]
-   - Détecte: /etc/*, /root/*, /etc/sudoers
-
-4. **SUSPICIOUS_FILE_DELETION** [HIGH]
-   - Détecte: Suppression de fichiers système ou logs
-
-5. **EXTERNAL_NETWORK_CONNECTION** [MEDIUM]
-   - Détecte: Connexions vers IPs externes (non-localhost)
-
----
-
-## 📊 STATISTIQUES
-
-| Métrique | Valeur |
-|----------|--------|
-| Lignes de code | 1,500+ |
-| Fonctions implémentées | 40+ |
-| Classes Pydantic | 10+ |
+**Status général :** prototype technique validé, avec un chemin de production restant à prouver sur un environnement Linux adapté.
 | Endpoints API | 9 |
 | Règles de sécurité | 5 |
 | Tests unitaires | 11 |

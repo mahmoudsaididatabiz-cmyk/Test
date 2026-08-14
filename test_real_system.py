@@ -99,7 +99,7 @@ def test_1_event_models():
     print(f"  - Model: {llm_event.model}")
     
     print("\n✅ Event Models Test PASSED - All data structures validated")
-    return True
+    assert True
 
 def test_2_session_management():
     """Test 2: Session creation and process tree building"""
@@ -172,7 +172,7 @@ def test_2_session_management():
     print(f"  - Duration: {summary.duration}s")
     
     print("\n✅ Session Management Test PASSED - Process tree validated")
-    return True
+    assert True
 
 def test_3_security_rules():
     """Test 3: Security rules engine"""
@@ -238,7 +238,7 @@ def test_3_security_rules():
         print(f"  - Target: {security_event.target}")
     
     print("\n✅ Security Rules Test PASSED - All 4 rule types detected correctly")
-    return True
+    assert True
 
 def test_4_complete_pipeline():
     """Test 4: Complete end-to-end pipeline"""
@@ -325,7 +325,7 @@ def test_4_complete_pipeline():
     print(f"  - Process tree depth: {len(tree.get('children', []))}")
     
     print("\n✅ Complete Pipeline Test PASSED - Full workflow validated")
-    return True
+    assert True
 
 def test_5_llm_correlation():
     """Test 5: LLM to OS activity correlation"""
@@ -396,7 +396,7 @@ def test_5_llm_correlation():
     print(f"  - All events linked via session_id: {session_id}")
     
     print("\n✅ LLM-OS Correlation Test PASSED - Timeline demonstrates correlation")
-    return True
+    assert True
 
 def main():
     """Run all tests"""

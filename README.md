@@ -1,58 +1,72 @@
 # AgentSight: OS-Level Security Monitoring for AI Agents
 
-A comprehensive system for detecting suspicious activities performed by AI agents at the Linux operating-system level, using eBPF probes for kernel-level event capture.
+An architecture-focused security monitoring prototype for detecting suspicious activity by AI agents at the operating-system level.
 
-**Status**: Technical Assessment Implementation - Complete
+**Status**: Technical assessment / design prototype
 
 ## Overview
 
-AgentSight addresses a critical security gap: **Application logs alone do not provide an independent view of what was actually executed by the operating system.**
+AgentSight addresses a real security gap: **application logs do not provide an independent view of what the operating system actually executed**.
 
-This system captures OS-level events (process execution, file access, network connections) and correlates them with AI agent sessions to detect potentially sensitive or malicious actions.
+This repository implements a Python-based model of that architecture: event models, session correlation, security detection rules, and a FastAPI interface. It also includes an eBPF C source file and a capability preflight loader, but it does not currently provide a verified end-to-end live kernel injection in this environment.
+
+## Current Reality of the Implementation
+
+The codebase is best described as a practical prototype and architecture demonstration, not a fully deployed live eBPF monitoring system.
+
+What is implemented:
+- Agent session models and process tree logic
+- Event classes for process, file, network, and LLM interactions
+- Security rule engine for suspicious commands, sensitive file access, and network activity
+- REST API layer for session and event inspection
+- Simulation of realistic workflow scenarios
+- eBPF source and Linux capability checks for future kernel attachment
+
+What is not currently guaranteed in this repo:
+- a validated live eBPF program loaded into the running kernel
+- a confirmed ring-buffer consumer attached to a real tracepoint in CI or on arbitrary hosts
+- a production deployment with a fully verified live collector from kernel to userspace to API
+
+The critical point is this: the project includes a preflight check for eBPF capability, but not a confirmed runtime injection. In other words, the code checks whether the environment is capable of loading a BPF program; it does not claim to have successfully injected and attached the probe in all cases.
 
 ## Architecture Overview
 
 ### High-Level Pipeline
 
 ```
-Linux Kernel (tracepoint: sched_process_exec)
+Linux host capability check
     ↓
-eBPF Probe (C code in kernel space)
+BPF source design (`src/ebpf/probe.c`)
     ↓
-Ring Buffer (kernel→userspace communication)
+Capability preflight / loader readiness
     ↓
-Event Collection (Python)
+Python collector and session correlation
     ↓
-Session Management (PID/PPID correlation)
+Security rules engine
     ↓
-Security Rules Engine (detect suspicious actions)
-    ↓
-REST API (FastAPI)
+API and simulation output
 ```
+
+This is intentionally more conservative than the original marketing version: the runtime path is designed to fail safely when the host is not Linux, lacks permissions, lacks tooling, or is otherwise not suitable for kernel injection.
 
 ## Quick Start
 
 ### Installation
 
 ```bash
-cd /workspaces/preemptics-test
+cd /workspaces/test
 pip install -r requirements.txt
 ```
 
-### Run Demonstration
+### Run the simulated workflow
 
 ```bash
-# Run simulation with sample agent session
 python -m src.main
-
-# Expected output:
-# [Session Summary]
-# - Total processes: 6
-# - Total events: 42
-# - Security events detected: 2
 ```
 
-### Start API Server
+This runs the in-memory demonstration workflow and prints summary logs for the simulated session. It does not require a live eBPF kernel attachment to execute.
+
+### Start the API server
 
 ```bash
 python -m src.main --serve
@@ -63,159 +77,131 @@ curl http://localhost:8000/agents
 curl http://localhost:8000/agents/{session_id}/security-events
 ```
 
-### Run Tests
+### Run tests
 
 ```bash
 pytest tests/test_agentsight.py -v
 ```
 
-## Project Parts (From Technical Assessment)
+## What the repository currently does
 
-### Part A: AgentSight Architecture Analysis ✅
+### Part A: Architecture model and monitoring design
 
-Detailed documentation of the kernel→userspace pipeline:
+**Scope**: conceptual design, event flow, and security logic.
+
+The repository demonstrates the core design:
 
 ```
-Kernel Event → eBPF Probe → Ring Buffer → Event Collection
-                                            ↓
-                                     ProcessExecutionEvent
-                                            ↓
-                                      Session Manager
-                                            ↓
-                                    Process Tree Building
+Kernel event source -> event model -> session correlation -> security rules -> API exposure
 ```
 
-**Key Design Decisions**:
-- Hook: `tracepoint/sched/sched_process_exec` (reliable, fires after execve)
-- Communication: Ring Buffer (efficient, single reader, lock-free)
-- Process Tree: PPID-based tracking (no kernel-side state)
-- Event Loss: Sequence numbers (detects ring buffer overflow)
+Key design ideas:
+- `tracepoint/sched/sched_process_exec` is the intended hook for process execution events
+- ring buffer is the intended kernel→userspace transport
+- PPID-based process correlation is used to build session process trees
+- sequence numbers are planned to detect event loss
 
-See full documentation in [README_DETAILED.md](./docs/ARCHITECTURE.md)
-
-### Part B: eBPF Process Execution Probe ✅
+### Part B: eBPF source and readiness checks
 
 **File**: `src/ebpf/probe.c`
 
-Captures process execution events with:
-- `pid`, `ppid`, `uid`, `gid` (process info)
-- `timestamp` (nanoseconds since boot)
-- `comm`, `filename` (executable identification)
-- `sequence` (event loss detection)
+The repository contains a BPF program intended to capture process execution events with:
+- `pid`, `ppid`, `uid`, `gid`
+- `timestamp`
+- `comm` and executable path
+- `sequence` number for loss detection
 
-**Design Rationale**:
-- Uses `sched_process_exec` tracepoint (cleaner than syscall tracing)
-- Ring buffer submission (no blocking, automatic backpressure)
-- Sequence numbers (userspace detects lost events)
-- Error handling: silent drop on buffer full (system never stalls)
+This file is present and structurally valid as a kernel eBPF design target. However, the actual runtime path in the Python collector is a preflight capability check, not a confirmed injection.
 
-### Part C: Agent Session Model ✅
+**Important distinction**:
+- `BPFEventCollector.start()` calls `_load_kernel_probe()`
+- `_load_kernel_probe()` calls `check_kernel_injection_capabilities()`
+- `check_kernel_injection_capabilities()` verifies Linux + `/sys/fs/bpf` + CAP_BPF/CAP_SYS_ADMIN + toolchain availability
+- it does not prove that the probe is actively running in the kernel after the check succeeds
+
+### Part C: Agent session model
 
 **File**: `src/models/session.py`
 
-```python
-AgentSession
-├── session_id: str
-├── main_pid: int
-├── start_time, end_time: datetime
-├── processes: Dict[int, ProcessNode]  # Process tree
-├── timeline: SessionTimeline          # Chronological events
-├── files_accessed: Dict               # File I/O tracking
-├── network_connections: List          # Network events
-├── llm_interactions: List             # What triggered this
-└── security_events: List[SecurityEvent]
-```
+The session model includes:
+- session identifiers and main process tracking
+- process tree construction
+- file and network event association
+- security event aggregation
+- summary statistics
 
-**Features**:
-- Process tree building via PPID relationships
-- Session timeline (LLM → process → network → files)
-- Summary statistics
-- Correlation of all events under one session_id
-
-### Part D: Sensitive Action Detection ✅
+### Part D: Security rule engine
 
 **File**: `src/collector/security.py`
 
-Security rules that detect:
+Detects patterns such as:
+- suspicious command execution (`curl`, `wget`, `ssh`, `sudo`, `rm`)
+- access to sensitive files such as SSH keys and environment files
+- suspicious deletion patterns
+- external network connections
 
-| Rule | Triggers On | Severity |
-|------|-------------|----------|
-| SENSITIVE_COMMAND_EXECUTION | curl, wget, ssh, sudo, rm, etc. | HIGH |
-| SENSITIVE_FILE_ACCESS | /etc/passwd, ~/.ssh, ~/.env | HIGH |
-| SUSPICIOUS_FILE_DELETION | /var/log/*, *.log | HIGH |
-| EXTERNAL_NETWORK_CONNECTION | Non-localhost addresses | MEDIUM |
+### Part E: Correlation and workflow simulation
 
-Example output:
-```json
-{
-  "severity": "HIGH",
-  "rule_name": "SENSITIVE_FILE_ACCESS",
-  "target": "/home/user/.ssh/id_rsa",
-  "rule_description": "Access to sensitive file"
-}
-```
+**File**: `src/main.py`
 
-### Part E: LLM-OS Activity Correlation ✅
+The demo creates a realistic workflow:
+- LLM interaction
+- agent process spawn
+- external download via `curl`
+- file access or write
+- suspicious SSH key access
+- cleanup process such as `rm`
 
-**File**: `src/models/session.py` + `src/main.py`
+This is a strong simulation of the intended logic and is useful for validating the analyst workflow and event correlation model.
 
-Timeline shows causality:
-
-```
-LLM Request: "Download report and save it locally"
-    ↓
-Process execve: curl
-    ↓
-Network connection: api.example.com:443
-    ↓
-File write: /tmp/report.pdf
-    ↓
-🚨 ALERT: Accessed ~/.ssh/id_rsa (suspicious!)
-```
-
-All events share same `session_id`, showing correlation.
-
-### Part F: Backend API ✅
+### Part F: API surface
 
 **File**: `src/api/server.py`
 
-REST Endpoints:
+The API exposes session and event data:
 
 ```
-GET /agents                      # List all sessions
-GET /agents/{id}                 # Session details
-GET /agents/{id}/timeline        # Event chronology
-GET /agents/{id}/processes       # Process tree
-GET /agents/{id}/security-events # Detected violations
-GET /events?pid=X                # Events by PID
-GET /events?severity=HIGH        # Events by severity
-GET /statistics                  # Overall metrics
+GET /agents
+GET /agents/{id}
+GET /agents/{id}/timeline
+GET /agents/{id}/processes
+GET /agents/{id}/security-events
+GET /events?pid=X
+GET /events?severity=HIGH
+GET /statistics
 ```
 
 ## Project Structure
 
 ```
 src/
-├── main.py                           # Integration + simulation
+├── main.py                           # Demo and orchestration
 ├── models/
-│   ├── events.py                     # Event data structures (Part A-E)
-│   └── session.py                    # AgentSession (Part C)
+│   ├── events.py                     # Event data structures
+│   └── session.py                    # Session and process tree logic
 ├── collector/
-│   ├── collector.py                  # Event collection (Parts A-B)
-│   └── security.py                   # Rules engine (Part D)
+│   ├── collector.py                  # Event collection and kernel capability checks
+│   └── security.py                   # Security rules engine
 ├── api/
-│   └── server.py                     # REST API (Part F)
-└── ebpf/
-    └── probe.c                       # eBPF source (Part B)
+│   └── server.py                     # REST API
+├── ebpf/
+│   └── probe.c                       # BPF source for the intended probe
+└── __init__.py
 
 tests/
-└── test_agentsight.py               # Unit tests
+├── test_agentsight.py                # Core unit tests
+├── test_security_rules_advanced.py   # Additional security rule coverage
+├── test_linux_ebpf_integration.py    # Linux-specific eBPF readiness considerations
+├── test_advanced_comprehensive.py    # Broader validation
+└── tests for sessions and agent workflows
 
 docs/
-└── (detailed architecture docs)
+├── API_EXAMPLES.md                  # API usage examples
+├── EBPF_DESIGN.md                   # eBPF design notes
+└── ...
 ```
 
-## Demonstration: Complete Workflow
+## Demonstration workflow
 
 Run the simulation:
 
@@ -223,139 +209,78 @@ Run the simulation:
 python -m src.main
 ```
 
-**Output**:
-```
-Event Timeline:
-10:01:02 LLM request: "Download report and save locally"
-10:01:03 Process: python agent.py (PID 10001)
-10:01:04 Process: curl (PID 10002, child of 10001)
-10:01:05 Network: curl → api.example.com:443
-10:01:06 File: write /tmp/report.pdf (102.4 KB)
-10:01:07 🚨 SECURITY ALERT: Access to /home/user/.ssh/id_rsa
-10:01:08 Process: rm cleanup (PID 10003)
+Example output is a session summary based on in-memory events and security analysis:
+
+```text
+LLM Request: "Download the report and save it locally"
+Process exec: python agent.py (PID 10001)
+Process exec: curl (PID 10002, child of 10001)
+Network connection: api.example.com:443
+File write: /tmp/report.pdf
+SUSPICIOUS ACCESS: /home/user/.ssh/id_rsa
+Process exec: rm cleanup
 
 Session Summary:
 - Total processes: 6
 - Total events: 42
 - Security events: 2
-  [HIGH] SENSITIVE_FILE_ACCESS: /home/user/.ssh/id_rsa
-  [HIGH] SENSITIVE_COMMAND_EXECUTION: /usr/bin/curl
 ```
+
+This is a realistic example of the intended monitoring flow, but it is not evidence that the live kernel probe is running.
 
 ## Testing
 
 ```bash
-# Run all tests
 pytest tests/test_agentsight.py -v
-
-# Sample tests:
-# ✅ test_process_execution_event_creation
-# ✅ test_create_session
-# ✅ test_add_child_process
-# ✅ test_process_tree_building
-# ✅ test_sensitive_command_detection
-# ✅ test_sensitive_file_access_detection
-# ✅ test_file_deletion_detection
-# ✅ test_external_network_connection_detection
 ```
 
-## Key Features Demonstrated
+The current tests validate the logic of the architecture, session model, and security rules. They do not validate a live production kernel injection on a random host.
 
-### 1. Kernel-to-Userspace Pipeline
-- eBPF tracepoint hook captures raw OS events
-- Ring buffer handles backpressure (automatic sliding window)
-- Sequence numbers detect event loss
-- Efficient, lock-free communication
-
-### 2. Process Tree Tracking
-- PPID-based parent-child relationship building
-- Hierarchical representation for visualization
-- Supports complex process hierarchies (e.g., agent → bash → curl → wget chains)
-
-### 3. Session Correlation
-- All events associated via session_id
-- Timeline shows chronological causality
-- LLM prompt linked to OS actions
-
-### 4. Security Detection
-- Data-driven rule engine (easy to extend)
-- Multiple event types: process, file, network
-- Configurable severity levels
-- No false negatives on high-confidence rules
-
-### 5. REST API
-- JSON responses with proper schemas
-- Pagination support
-- Cross-session event search
-- Statistics and aggregation
-
-## Performance Characteristics
-
-| Metric | Value |
-|--------|-------|
-| Max events/sec | 1000+ (with tuning) |
-| Ring buffer size | 256KB (tunable) |
-| Memory per session | ~1-10MB |
-| API response time | <50ms |
-| CPU overhead | 1-2% idle, ~20% at 10k evt/sec |
-
-## Scalability Roadmap
-
-1. **Kernel-side filtering**: Reduce events at source
-2. **Event sampling**: Configurable sample rate
-3. **Aggregation**: Group similar events
-4. **Distributed collection**: Multiple collectors partitioning by PID
-5. **Database backend**: Replace in-memory storage
-6. **Event streaming**: Kafka for real-time processing
-
-## Limitations & Assumptions
+## Current limitations and honest status
 
 ### Limitations
 
-1. **eBPF program not actually loaded** (requires root + libbpf)
-   - Simulation mode demonstrates the data flow
-   - Production requires kernel >= 5.8
+1. **Kernel eBPF loading is not a confirmed runtime capability in this repo**
+   - The loader performs a preflight check
+   - It checks whether the environment could support injection
+   - It does not guarantee that the probe is already running in the kernel
 
-2. **In-memory storage only**
-   - Suitable for short-term demo
-   - Production needs PostgreSQL or time-series DB
+2. **In-memory-only demonstration**
+   - Sessions and events are stored in Python memory for demo purposes
+   - This is suitable for assessment and validation, not production deployment
 
-3. **Limited argv capture**
-   - Full command-line args need separate probe
-   - Kernel limitation on accessing user memory
+3. **Single probe design**
+   - The eBPF source focuses on process execution capture
+   - Other event sources are modeled or simulated rather than live-collected at kernel level
 
-4. **Single probe type**
-   - Only process execution captured
-   - File/network events simulated
-   - Production adds probes for each syscall
+4. **Tooling assumptions**
+   - Linux kernel support, root or CAP_BPF, and libbpf/bpftool availability are required for a real eBPF deployment
 
 ### Assumptions
 
-- Process tree validity (PPID relationships stable)
-- Clear session entry point (agent root process)
-- Simple rule matching (command name, path prefix)
-- No semantic parsing of LLM prompts
+- The host is Linux and has the required kernel capabilities
+- The BPF program can be compiled and loaded with the proper tooling
+- Session association is based on process lineage and runtime heuristics
+- Security rules remain intentionally simple and explainable
 
-## Production Improvements
+## Production roadmap
 
-- [ ] Persistence: PostgreSQL or InfluxDB
-- [ ] Real-time correlation: Spark/Flink
-- [ ] Machine learning: Anomaly detection
-- [ ] Visualization: Grafana dashboards
-- [ ] Alerting: PagerDuty/Slack integration
-- [ ] Enforcement: Kill suspicious processes
-- [ ] Compliance: SIEM integration
+- [ ] Real kernel attachment with validated eBPF load and attach flow
+- [ ] Ring buffer consumer connected to a running tracepoint
+- [ ] Persistence layer for long-lived sessions
+- [ ] Additional probes for file and socket events
+- [ ] Alerting and dashboards
+- [ ] Enforcement controls for suspicious activities
 
-## Technical References
+## Technical references
 
 - **AgentSight**: https://github.com/eunomia-bpf/agentsight
 - **eBPF Intro**: https://ebpf.io/
 - **libbpf**: https://github.com/libbpf/libbpf
-- **Ring Buffer**: Linux kernel docs
 - **FastAPI**: https://fastapi.tiangolo.com/
 
 ---
 
 **Implementation by**: GitHub Copilot
 **Date**: 2026-08-14
-**Status**: Complete - All 6 parts (A-F) implemented and tested
+**Status**: Architecture prototype and assessment implementation; eBPF live injection remains a future runtime step

@@ -10,7 +10,7 @@ Part C: Implements the Agent Session structure with:
 
 from datetime import datetime
 from typing import Dict, List, Optional, Set
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .events import (
     ProcessExecutionEvent,
@@ -31,6 +31,8 @@ class ProcessNode(BaseModel):
     Design decision: Track processes by PID with parent-child relationships
     to build the process tree and understand the execution hierarchy.
     """
+    model_config = ConfigDict(extra="allow")
+
     pid: int
     ppid: int
     comm: str
@@ -41,35 +43,27 @@ class ProcessNode(BaseModel):
     exit_code: Optional[int] = None
     children_pids: Set[int] = Field(default_factory=set)
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "pid": 5678,
-                "ppid": 1234,
-                "comm": "curl",
-                "executable": "/usr/bin/curl",
-                "argv": ["curl", "https://api.example.com"],
-                "start_time": "2024-01-01T10:01:05Z",
-                "children_pids": []
-            }
-        }
+    model_config = ConfigDict(extra="allow")
 
 
 class SessionTimeline(BaseModel):
     """
     Timeline of events within a session.
-    
+
     Chronologically ordered events that occurred during the agent session,
     from LLM interaction to OS-level observations.
     """
     events: List[Dict] = Field(default_factory=list)  # Polymorphic events
     security_events: List[SecurityEvent] = Field(default_factory=list)
-    
+
     def add_event(self, event: BaseOSEvent) -> None:
         """Add an OS event to timeline (maintains chronological order)."""
-        self.events.append(event.model_dump())
-        self.events.sort(key=lambda e: e["timestamp"])
-    
+        payload = event.model_dump(mode="json")
+        if isinstance(payload.get("timestamp"), str):
+            payload["timestamp"] = payload["timestamp"]
+        self.events.append(payload)
+        self.events.sort(key=lambda e: datetime.fromisoformat(str(e["timestamp"])))
+
     def add_security_event(self, event: SecurityEvent) -> None:
         """Add a security event."""
         self.security_events.append(event)
@@ -84,6 +78,11 @@ class SessionSummary(BaseModel):
     unique_files_accessed: int = 0
     unique_commands: int = 0
     network_connections_count: int = 0
+    duration: float = 0.0
+
+    @property
+    def duration_seconds(self) -> float:
+        return self.duration
 
 
 class AgentSession(BaseModel):
@@ -100,7 +99,8 @@ class AgentSession(BaseModel):
     4. Session timeline: Chronological record of all activity
     5. Security analysis: Detect and record suspicious activity
     """
-    
+    model_config = ConfigDict(extra="allow")
+
     # Session identification
     session_id: str
     agent_name: str = "unknown"
@@ -136,19 +136,6 @@ class AgentSession(BaseModel):
     environment: Dict[str, str] = Field(default_factory=dict)
     tags: List[str] = Field(default_factory=list)
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "session_id": "session-42",
-                "agent_name": "security-audit-agent",
-                "start_time": "2024-01-01T10:01:02Z",
-                "main_pid": 1234,
-                "main_ppid": 1000,
-                "main_executable": "/usr/bin/python3",
-                "main_command": "python3 agent.py",
-            }
-        }
-    
     # =========================================================================
     # Core Methods for Session Management
     # =========================================================================
@@ -182,7 +169,7 @@ class AgentSession(BaseModel):
     def add_event(self, event: BaseOSEvent) -> None:
         """Add an OS event to the session's timeline."""
         self.timeline.add_event(event)
-        
+
         # Track file accesses
         if isinstance(event, (FileAccessEvent, FileWriteEvent, FileDeleteEvent)):
             path = event.path
@@ -190,7 +177,7 @@ class AgentSession(BaseModel):
             if path not in self.files_accessed:
                 self.files_accessed[path] = []
             self.files_accessed[path].append(op)
-        
+
         # Track network connections
         if isinstance(event, NetworkConnectionEvent):
             self.network_connections.append(event)
@@ -233,6 +220,10 @@ class AgentSession(BaseModel):
     
     def get_summary(self) -> SessionSummary:
         """Generate a summary of the session."""
+        duration = 0.0
+        if self.start_time and self.end_time:
+            duration = (self.end_time - self.start_time).total_seconds()
+
         return SessionSummary(
             total_processes=len(self.processes),
             total_events=len(self.timeline.events),
@@ -240,6 +231,7 @@ class AgentSession(BaseModel):
             unique_files_accessed=len(self.files_accessed),
             unique_commands=len(set(p.comm for p in self.processes.values())),
             network_connections_count=len(self.network_connections),
+            duration=duration,
         )
     
     def mark_ended(self, end_time: datetime) -> None:

@@ -170,7 +170,7 @@ def create_detailed_pdf():
     
     # Metadata
     story.append(Paragraph(
-        f"<b>État du projet:</b> ✅ COMPLET - 100% RÉALISÉ",
+        f"<b>État du projet:</b> ✅ PROTOTYPE TECHNIQUE VALIDÉ - RÉPONSE REPRÉSENTATIVE",
         ParagraphStyle('Meta', parent=styles['Normal'], fontSize=12,
                       alignment=TA_CENTER, textColor=SUCCESS_COLOR, fontName='Helvetica-Bold')
     ))
@@ -221,16 +221,17 @@ def create_detailed_pdf():
     
     exec_summary = """
     <b>AgentSight</b> est un système de surveillance de sécurité au niveau OS conçu pour détecter les activités suspectes 
-    exécutées par des agents IA. Il associe la capture d’événements au niveau noyau via eBPF à une analyse avancée en espace utilisateur 
-    pour corréler les prompts LLM avec les comportements réels observés sur le système.
+    exécutées par des agents IA. Il associe des modèles de session, des règles de détection et une API d’inspection à une architecture
+    pensée pour le pipeline kernel→userspace, tout en restant honnête sur le fait que le chargement eBPF réel n’est pas validé comme
+    un inject kernel en production dans ce dépôt.
     <br/><br/>
     <b>Réalisations clés :</b>
-    <br/>✅ <b>Implémentation complète :</b> les 6 composantes architecturales ont été réalisées et validées
-    <br/>✅ <b>Plus de 50 scénarios de test :</b> couverture complète des fonctions critiques
-    <br/>✅ <b>Validation système réel :</b> tests non simulés démontrant 4 violations de sécurité détectées
-    <br/>✅ <b>Excellence algorithmique :</b> arbre de processus intelligent, détection des menaces, corrélation
-    <br/>✅ <b>Qualité de production :</b> code robuste, documenté et exploitable
-    <br/>✅ <b>Architecture évolutive :</b> prête pour des déploiements multi-hôtes et multi-agents
+    <br/>✅ <b>Prototype technique validé :</b> pipeline, modèles, analyse de sécurité et API documentés et testés
+    <br/>✅ <b>Couverture fonctionnelle :</b> scénarios et tests vérifiés sur la logique de corrélation et de détection
+    <br/>✅ <b>Préflight eBPF :</b> vérification de capacités Linux et de toolchain, sans prétendre à un inject réel non validé
+    <br/>✅ <b>Détection de menaces :</b> commandes sensibles, fichiers critiques, suppression et connexions externes
+    <br/>✅ <b>API exploitable :</b> endpoints de session, timeline, sécurité et statistiques
+    <br/>✅ <b>Représentation honnête :</b> le document rend compte de ce qui est réellement implémenté et des étapes restantes
     """
     story.append(Paragraph(exec_summary, normal_style))
     
@@ -509,8 +510,9 @@ def create_detailed_pdf():
     <br/>  ❌ Linked list traversal (poor cache locality)
     <br/>  ❌ In-kernel state (complexity, scalability issues)
     <br/><br/>
-    <b>Our Intelligent Solution:</b>
-    <br/>We implemented a stateless, userspace-only process tree using hash maps:
+    <b>Our Design:</b>
+    <br/>We implemented a stateless, userspace-only process tree using hash maps and we avoid making performance claims that are not benchmarked here.
+    <br/>The implementation is designed for correctness and maintainability first, while keeping the data structures simple and deterministic.
     <br/><br/>
     <b>Core Data Structure:</b>
     ```python
@@ -536,13 +538,11 @@ def create_detailed_pdf():
     <br/>2. Store in processes[1001] [O(1) dict insertion]
     <br/>3. Lookup parent: processes.get(1000) [O(1) dict lookup]
     <br/>4. Update parent.children_pids.add(1001) [O(1) set insertion]
-    <br/>5. Total: O(1) per event
+    <br/>5. Total: O(1) per event under the current design assumptions
     <br/><br/>
-    <b>Compare to Traditional Approaches:</b>
-    <br/>With 10,000 processes:
-    <br/>  • Hash map approach: ~1μs per lookup
-    <br/>  • Linear search: ~500μs per lookup
-    <br/>  • Tree traversal: ~100-500μs per lookup
+    <b>Performance Note:</b>
+    <br/>The implementation is efficient by construction, but the exact timings depend on the host kernel, scheduling, and workload.
+    <br/>No hard benchmark claims are made here because we have not run a dedicated machine-level profiling pass.
     <br/><br/>
     <b>Intelligent Features:</b>
     <br/>✓ No tree rebalancing (stateless design)
@@ -1194,23 +1194,22 @@ def create_detailed_pdf():
     story.append(Spacer(1, 0.1*inch))
     
     conclusion = """
-    <b>AgentSight represents a comprehensive, production-ready solution for OS-level security 
+    <b>AgentSight represents a credible technical prototype and assessment implementation for OS-level security 
     monitoring of AI agents.</b>
     <br/><br/>
     <b>Key Accomplishments:</b>
-    <br/>✅ <b>Complete Implementation:</b> All 6 architectural components delivered
-    <br/>✅ <b>Algorithmic Excellence:</b> O(1) process lookup, stateless design, efficient threat detection
-    <br/>✅ <b>Comprehensive Testing:</b> 60+ scenarios covering all functionality
-    <br/>✅ <b>Real System Validation:</b> End-to-end tests demonstrating threat detection
-    <br/>✅ <b>Production Quality:</b> Enterprise-grade code, full documentation, scalable design
+    <br/>✅ <b>Validated architecture:</b> All 6 design components are represented and tested in code and scenarios
+    <br/>✅ <b>Algorithmic clarity:</b> O(1) process lookup patterns, session graph logic, and rule-based detection
+    <br/>✅ <b>Representative testing:</b> Functional validation covering the assessment workflow and API behavior
+    <br/>✅ <b>Runtime honesty:</b> eBPF capability checks are performed without claiming confirmed kernel injection
+    <br/>✅ <b>Prototype quality:</b> Code, docs, and examples are cohesive and useful for architecture review
     <br/><br/>
     <b>Technical Highlights:</b>
-    <br/>• Hash-map based process tree (500x faster than linear search)
-    <br/>• Stateless kernel probe (complexity minimization)
-    <br/>• Ring buffer backpressure handling (automatic loss detection)
-    <br/>• Pattern-based threat detection (5 rule categories)
-    <br/>• Timeline-based LLM-OS correlation (behavioral analysis)
-    <br/>• RESTful API (9 endpoints for data access)
+    <br/>• Process tree and session modeling for OS-level event correlation
+    <br/>• Security rule engine for suspicious commands, files, deletions, and network access
+    <br/>• Timeline-based LLM-OS correlation across agent workflows
+    <br/>• REST API for data exploration, incident review, and statistics
+    <br/>• eBPF source and Linux capability preflight for intended live-runtime integration
     <br/><br/>
     <b>Security Impact:</b>
     <br/>AgentSight detects attacks that application logs alone cannot reveal:
