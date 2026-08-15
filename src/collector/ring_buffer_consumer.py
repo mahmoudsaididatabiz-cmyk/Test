@@ -26,9 +26,14 @@ logger = logging.getLogger(__name__)
 EVENT_SCHEMA_VERSION = 1
 
 # Binary event structure (matches probe.c struct kernel_event)
-# Layout: [version:1][type:1][pid:4][ppid:4][uid:4][gid:4][timestamp_ns:8][comm:16][data:256]
-EVENT_STRUCT_FORMAT = "!BBIIIIQ16s256s"  # Big-endian for portability
+# Preferred layout includes a sequence number for gap detection:
+# [version:1][type:1][pid:4][ppid:4][uid:4][gid:4][timestamp_ns:8][sequence:8][comm:16][data:256]
+EVENT_STRUCT_FORMAT = "!BBIIIIQQ16s256s"  # Big-endian for portability
 EVENT_STRUCT_SIZE = struct.calcsize(EVENT_STRUCT_FORMAT)
+
+# Backward-compatible legacy format used in earlier prototypes without sequence tracking
+LEGACY_EVENT_STRUCT_FORMAT = "!BBIIIIQ16s256s"
+LEGACY_EVENT_STRUCT_SIZE = struct.calcsize(LEGACY_EVENT_STRUCT_FORMAT)
 
 # Event types (matches probe.c)
 EVENT_TYPE_EXEC = 1
@@ -96,38 +101,57 @@ class RingBufferDecoder:
     def __init__(self):
         self.decode_errors = 0
         self.events_decoded = 0
-    
+
     def decode_event(self, raw_bytes: bytes) -> tuple[bool, Optional[DecodedKernelEvent], str]:
         """
         Decode a single event from raw bytes.
-        
+
+        Supports both the modern format with a sequence number and the earlier
+        legacy format used in the prototype to stay compatible with old fixtures.
+
         Returns:
             (success: bool, event: DecodedKernelEvent | None, reason: str)
         """
-        
-        # Check minimum size
-        if len(raw_bytes) < EVENT_STRUCT_SIZE:
+
+        # Accept the modern format when present, otherwise the legacy one.
+        candidate_formats = [
+            (EVENT_STRUCT_FORMAT, EVENT_STRUCT_SIZE),
+            (LEGACY_EVENT_STRUCT_FORMAT, LEGACY_EVENT_STRUCT_SIZE),
+        ]
+
+        matching_format = None
+        for fmt, size in candidate_formats:
+            if len(raw_bytes) >= size:
+                matching_format = (fmt, size)
+                break
+
+        if matching_format is None:
             self.decode_errors += 1
-            return False, None, f"Truncated payload: {len(raw_bytes)} < {EVENT_STRUCT_SIZE}"
-        
+            return False, None, f"Truncated payload: {len(raw_bytes)} < {max(size for _, size in candidate_formats)}"
+
         try:
-            # Unpack binary structure
-            (version, event_type, pid, ppid, uid, gid, timestamp_ns, comm_bytes, data_bytes) = \
-                struct.unpack(EVENT_STRUCT_FORMAT, raw_bytes[:EVENT_STRUCT_SIZE])
-            
+            fmt, size = matching_format
+            unpacked = struct.unpack(fmt, raw_bytes[:size])
+
+            if fmt == LEGACY_EVENT_STRUCT_FORMAT:
+                version, event_type, pid, ppid, uid, gid, timestamp_ns, comm_bytes, data_bytes = unpacked
+                sequence = 0
+            else:
+                version, event_type, pid, ppid, uid, gid, timestamp_ns, sequence, comm_bytes, data_bytes = unpacked
+
             # Validate schema version
             if version != EVENT_SCHEMA_VERSION:
                 self.decode_errors += 1
                 return False, None, f"Unknown schema version: {version}"
-            
+
             # Validate event type
             if event_type not in EVENT_TYPE_NAMES:
                 self.decode_errors += 1
                 return False, None, f"Unknown event type: {event_type}"
-            
+
             # Decode comm (NUL-terminated C string)
             comm = comm_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
-            
+
             event = DecodedKernelEvent(
                 version=version,
                 event_type=event_type,
@@ -139,11 +163,12 @@ class RingBufferDecoder:
                 timestamp_ns=timestamp_ns,
                 comm=comm,
                 data_raw=data_bytes,
+                sequence=sequence,
             )
-            
+
             self.events_decoded += 1
             return True, event, "OK"
-            
+
         except struct.error as e:
             self.decode_errors += 1
             return False, None, f"Struct unpack error: {e}"
@@ -193,6 +218,7 @@ class RingBufferConsumer:
         self.sequence_errors = 0
         self.total_received = 0
         self.last_sequence = -1
+        self._next_sequence = 0
         self.sequence_gaps = deque(maxlen=100)  # Track recent gaps
         
         # Ring buffer simulation (in real impl, would be libbpf FD)
@@ -290,14 +316,27 @@ class RingBufferConsumer:
             logger.debug(f"Decode error: {reason}")
             return False
         
-        # Check for sequence gap
-        if event.sequence > 0:
+        # Support legacy payloads without an encoded sequence by advancing a synthetic
+        # monotonic counter. This keeps the collector behavior stable in older fixtures
+        # and in non-kernel unit tests while preserving real sequence detection when
+        # a kernel payload includes sequence numbers.
+        if event.sequence <= 0:
+            self._next_sequence += 1
+            event.sequence = self._next_sequence
             if self.last_sequence >= 0 and event.sequence != self.last_sequence + 1:
                 gap = event.sequence - self.last_sequence - 1
                 self.sequence_errors += gap
                 self.sequence_gaps.append((self.last_sequence, event.sequence))
                 logger.warning(f"Sequence gap: {self.last_sequence} → {event.sequence} (gap: {gap})")
             self.last_sequence = event.sequence
+        else:
+            if self.last_sequence >= 0 and event.sequence != self.last_sequence + 1:
+                gap = event.sequence - self.last_sequence - 1
+                self.sequence_errors += gap
+                self.sequence_gaps.append((self.last_sequence, event.sequence))
+                logger.warning(f"Sequence gap: {self.last_sequence} → {event.sequence} (gap: {gap})")
+            self.last_sequence = event.sequence
+            self._next_sequence = max(self._next_sequence, event.sequence)
         
         # Try to enqueue
         try:
